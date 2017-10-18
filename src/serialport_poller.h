@@ -13,6 +13,7 @@ class SerialportPoller : public Nan::ObjectWrap {
   static void Init(v8::Handle<v8::Object> target);
 
   void callCallback(int status);
+  static NAN_METHOD(SetLoggerCallback);
 
   void _start();
   void _stop();
@@ -32,6 +33,7 @@ class SerialportPoller : public Nan::ObjectWrap {
   char errorString[ERROR_STRING_SIZE];
 
   Nan::Callback* callback_;
+  Nan::Callback* logger_callback;
 };
 
 #endif

@@ -4,7 +4,6 @@
 
 #include <nan.h>
 #include "./serialport_poller.h"
-#include <syslog.h>
 
 using namespace v8;
 
@@ -14,13 +13,18 @@ SerialportPoller::SerialportPoller() :  Nan::ObjectWrap() {}
 SerialportPoller::~SerialportPoller() {
   // printf("~SerialportPoller\n");
   delete callback_;
+  delete logger_callback;
 }
 
 void SerialportPoller::_serialportReadable(uv_poll_t *req, int status, int events) {
+  Nan::HandleScope scope;
   SerialportPoller* sp = (SerialportPoller*) req->data;
   // We can stop polling until we have read all of the data...
   sp->_stop();
-  syslog(LOG_DEBUG, "Got some bytes to read from fd %i", sp->fd_);
+  v8::Local<v8::Value> argv[1];
+  snprintf(sp->errorString, sizeof(sp->errorString), "Got some bytes to read from fd %i", sp->fd_);
+  argv[0] = Nan::New<v8::String>(sp->errorString).ToLocalChecked();
+  sp->logger_callback->Call(1, argv);
   sp->callCallback(status);
 }
 
@@ -68,6 +72,8 @@ void SerialportPoller::Init(Handle<Object> target) {
   // SerialportPoller.start()
   Nan::SetPrototypeMethod(tpl, "start", Start);
 
+  Nan::SetPrototypeMethod(tpl, "SetLoggerCallback", SetLoggerCallback);
+
   serialportpoller_constructor.Reset(tpl);
 
   Nan::Set(target, Nan::New<String>("SerialportPoller").ToLocalChecked(), Nan::GetFunction(tpl).ToLocalChecked());
@@ -95,19 +101,34 @@ NAN_METHOD(SerialportPoller::New) {
 
   uv_poll_init(uv_default_loop(), &obj->poll_handle_, obj->fd_);
 
-  syslog(LOG_DEBUG, "Start polling serial port fd %i", obj->fd_);
   uv_poll_start(&obj->poll_handle_, UV_READABLE, _serialportReadable);
 
   info.GetReturnValue().Set(info.This());
 }
 
+
+NAN_METHOD(SerialportPoller::SetLoggerCallback) {
+  if (!info[0]->IsFunction()) {
+    Nan::ThrowTypeError("First argument must be a function");
+    return;
+  }
+  SerialportPoller* obj = Nan::ObjectWrap::Unwrap<SerialportPoller>(info.This());
+  obj->logger_callback = new Nan::Callback(info[0].As<v8::Function>());
+}
+
 void SerialportPoller::_start() {
-  syslog(LOG_DEBUG, "Start polling serial port fd %i", fd_);
+  v8::Local<v8::Value> argv[1];
+  snprintf(this->errorString, sizeof(this->errorString), "Start polling serial port fd %i", this->fd_);
+  argv[0] = Nan::New<v8::String>(this->errorString).ToLocalChecked();
+  logger_callback->Call(1, argv);
   uv_poll_start(&poll_handle_, UV_READABLE, _serialportReadable);
 }
 
 void SerialportPoller::_stop() {
-  syslog(LOG_DEBUG, "Stop polling serial port fd %i", fd_);
+  v8::Local<v8::Value> argv[1];
+  snprintf(this->errorString, sizeof(this->errorString), "Stop polling serial port fd %i", this->fd_);
+  argv[0] = Nan::New<v8::String>(this->errorString).ToLocalChecked();
+  logger_callback->Call(1, argv);
   uv_poll_stop(&poll_handle_);
 }
 
