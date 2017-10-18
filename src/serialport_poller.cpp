@@ -4,6 +4,7 @@
 
 #include <nan.h>
 #include "./serialport_poller.h"
+#include <syslog.h>
 
 using namespace v8;
 
@@ -15,10 +16,11 @@ SerialportPoller::~SerialportPoller() {
   delete callback_;
 }
 
-void _serialportReadable(uv_poll_t *req, int status, int events) {
+void SerialportPoller::_serialportReadable(uv_poll_t *req, int status, int events) {
   SerialportPoller* sp = (SerialportPoller*) req->data;
   // We can stop polling until we have read all of the data...
   sp->_stop();
+  syslog(LOG_DEBUG, "Got some bytes to read from fd %i", sp->fd_);
   sp->callCallback(status);
 }
 
@@ -93,16 +95,19 @@ NAN_METHOD(SerialportPoller::New) {
 
   uv_poll_init(uv_default_loop(), &obj->poll_handle_, obj->fd_);
 
+  syslog(LOG_DEBUG, "Start polling serial port fd %i", obj->fd_);
   uv_poll_start(&obj->poll_handle_, UV_READABLE, _serialportReadable);
 
   info.GetReturnValue().Set(info.This());
 }
 
 void SerialportPoller::_start() {
+  syslog(LOG_DEBUG, "Start polling serial port fd %i", fd_);
   uv_poll_start(&poll_handle_, UV_READABLE, _serialportReadable);
 }
 
 void SerialportPoller::_stop() {
+  syslog(LOG_DEBUG, "Stop polling serial port fd %i", fd_);
   uv_poll_stop(&poll_handle_);
 }
 

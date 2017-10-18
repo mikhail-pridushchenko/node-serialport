@@ -25,6 +25,8 @@ class SerialportPoller : public Nan::ObjectWrap {
   static NAN_METHOD(Close);
   static NAN_METHOD(Start);
 
+  static void _serialportReadable(uv_poll_t*, int, int);
+
   uv_poll_t poll_handle_;
   int fd_;
   char errorString[ERROR_STRING_SIZE];
