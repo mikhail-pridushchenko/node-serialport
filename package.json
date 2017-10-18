@@ -15,7 +15,7 @@
   "main": "./lib/serialport",
   "repository": {
     "type": "git",
-    "url": "git://github.com/EmergingTechnologyAdvisors/node-serialport.git"
+    "url": "git://github.com/mikhail-pridushchenko/node-serialport.git"
   },
   "keywords": [
     "serialport",
@@ -58,7 +58,8 @@
     "lie": "^3.1.0",
     "nan": "^2.4.0",
     "node-pre-gyp": "^0.6.32",
-    "object.assign": "^4.0.3"
+    "object.assign": "^4.0.3",
+    "lodash": "^4.17.4"
   },
   "devDependencies": {
     "chai": "^3.5.0",
