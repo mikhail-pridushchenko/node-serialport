@@ -18,6 +18,7 @@ class SerialportPoller : public Nan::ObjectWrap {
   void _start();
   void _stop();
 
+  static const uint64_t poll_timeout = 15000; // 15 seconds
  private:
   SerialportPoller();
   ~SerialportPoller();
@@ -27,8 +28,10 @@ class SerialportPoller : public Nan::ObjectWrap {
   static NAN_METHOD(Start);
 
   static void _serialportReadable(uv_poll_t*, int, int);
+  static void _serialportTimeout(uv_timer_t*);
 
   uv_poll_t poll_handle_;
+  uv_timer_t poll_timer;
   int fd_;
   char errorString[ERROR_STRING_SIZE];
 

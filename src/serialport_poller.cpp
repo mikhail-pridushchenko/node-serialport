@@ -4,6 +4,7 @@
 
 #include <nan.h>
 #include "./serialport_poller.h"
+#include <poll.h>
 
 using namespace v8;
 
@@ -11,7 +12,6 @@ static Nan::Persistent<v8::FunctionTemplate> serialportpoller_constructor;
 
 SerialportPoller::SerialportPoller() :  Nan::ObjectWrap() {}
 SerialportPoller::~SerialportPoller() {
-  // printf("~SerialportPoller\n");
   delete callback_;
   delete logger_callback;
 }
@@ -21,11 +21,40 @@ void SerialportPoller::_serialportReadable(uv_poll_t *req, int status, int event
   SerialportPoller* sp = (SerialportPoller*) req->data;
   // We can stop polling until we have read all of the data...
   sp->_stop();
+
   v8::Local<v8::Value> argv[1];
   snprintf(sp->errorString, sizeof(sp->errorString), "Got some bytes to read from fd %i", sp->fd_);
   argv[0] = Nan::New<v8::String>(sp->errorString).ToLocalChecked();
   sp->logger_callback->Call(1, argv);
   sp->callCallback(status);
+}
+
+void SerialportPoller::_serialportTimeout(uv_timer_t *req) {
+  Nan::HandleScope scope;
+  SerialportPoller* sp = (SerialportPoller*) req->data;
+  // We can stop polling until we have read all of the data...
+  sp->_stop();
+
+  // Check we have a data to read
+  pollfd pfd = { .fd = sp->fd_, .events = POLLIN };
+  int express_poll_result = poll(&pfd, 1, 0); // We want result immediately.
+  if (express_poll_result != 1) {
+	  sp->_start();
+	  return;
+  }
+
+  v8::Local<v8::Value> argv[1];
+  if (pfd.revents & POLLIN) {
+	  snprintf(sp->errorString, sizeof(sp->errorString), "Got some bytes to read from fd %i by timeout", sp->fd_);
+	  argv[0] = Nan::New<v8::String>(sp->errorString).ToLocalChecked();
+	  sp->logger_callback->Call(1, argv);
+	  sp->callCallback(0);
+  } else {
+	  snprintf(sp->errorString, sizeof(sp->errorString), "Proceed with polling fd %i after timeout", sp->fd_);
+	  argv[0] = Nan::New<v8::String>(sp->errorString).ToLocalChecked();
+	  sp->logger_callback->Call(1, argv);
+	  sp->_start();
+  }
 }
 
 void SerialportPoller::callCallback(int status) {
@@ -98,10 +127,13 @@ NAN_METHOD(SerialportPoller::New) {
   obj->Wrap(info.This());
 
   obj->poll_handle_.data = obj;
+  obj->poll_timer.data = obj;
 
   uv_poll_init(uv_default_loop(), &obj->poll_handle_, obj->fd_);
+  uv_timer_init(uv_default_loop(), &obj->poll_timer);
 
   uv_poll_start(&obj->poll_handle_, UV_READABLE, _serialportReadable);
+  uv_timer_start(&obj->poll_timer, _serialportTimeout, poll_timeout, 0);
 
   info.GetReturnValue().Set(info.This());
 }
@@ -122,6 +154,7 @@ void SerialportPoller::_start() {
   argv[0] = Nan::New<v8::String>(this->errorString).ToLocalChecked();
   logger_callback->Call(1, argv);
   uv_poll_start(&poll_handle_, UV_READABLE, _serialportReadable);
+  uv_timer_start(&poll_timer, _serialportTimeout, poll_timeout, 0);
 }
 
 void SerialportPoller::_stop() {
@@ -130,6 +163,7 @@ void SerialportPoller::_stop() {
   argv[0] = Nan::New<v8::String>(this->errorString).ToLocalChecked();
   logger_callback->Call(1, argv);
   uv_poll_stop(&poll_handle_);
+  uv_timer_stop(&poll_timer);
 }
 
 
